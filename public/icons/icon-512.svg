@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="96" fill="#F6F1EB"/>
+  <rect x="40" y="40" width="432" height="432" rx="72" fill="#5B4A3F"/>
+  <rect x="60" y="60" width="392" height="392" rx="56" fill="#F6F1EB"/>
+  <!-- Checkbox checked -->
+  <rect x="120" y="148" width="72" height="72" rx="18" fill="#6B8F71"/>
+  <polyline points="140,184 156,200 188,168" stroke="white" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Text lines -->
+  <rect x="216" y="168" width="160" height="10" rx="5" fill="#5B4A3F" opacity="0.6"/>
+  <rect x="216" y="196" width="110" height="7" rx="3.5" fill="#5B4A3F" opacity="0.25"/>
+  <!-- Checkbox unchecked -->
+  <rect x="120" y="260" width="72" height="72" rx="18" fill="none" stroke="#D4C8BC" stroke-width="6"/>
+  <!-- Text lines -->
+  <rect x="216" y="280" width="140" height="10" rx="5" fill="#5B4A3F" opacity="0.4"/>
+  <rect x="216" y="308" width="96" height="7" rx="3.5" fill="#5B4A3F" opacity="0.15"/>
+</svg>
