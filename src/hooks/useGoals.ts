@@ -42,7 +42,7 @@ function parseSubsFromMarkdown(lines: string[], startIdx: number, parentIndent: 
     const checked = cbMatch ? cbMatch[1] === 'x' : false;
     i++;
     const children = parseSubsFromMarkdown(lines, i, indent);
-    subs.push({ id: generateId(), text, type: isCheckbox ? 'checkbox' : 'list', checked: false, subs: children.subs });
+    subs.push({ id: generateId(), text, type: isCheckbox ? 'checkbox' : 'list', checked, subs: children.subs });
     i = children.nextIdx;
   }
   return { subs, nextIdx: i };
