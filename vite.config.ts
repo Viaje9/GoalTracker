@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  base: '/GoalTracker/',
   plugins: [
     react(),
     VitePWA({
@@ -12,7 +13,7 @@ export default defineConfig({
         name: '週目標管理',
         short_name: '週目標',
         description: '以每週為單位的目標管理工具',
-        start_url: '/',
+        start_url: '/GoalTracker/',
         display: 'standalone',
         background_color: '#F7F8FC',
         theme_color: '#FFFFFF',
