@@ -1,9 +1,6 @@
 node_modules
-dist
-dev-dist
-*.local
-
-# Server
 server/node_modules
 server/dist
-server/.env
+dist
+.git
+*.md

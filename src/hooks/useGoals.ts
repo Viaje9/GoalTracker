@@ -1,28 +1,8 @@
-import { useState, useCallback } from 'react';
-import type { Goal, SubItem, GoalData } from '../types';
+import { useState, useCallback, useEffect } from 'react';
+import type { Goal, SubItem } from '../types';
+import * as api from '../api';
 
-const STORAGE_KEY = 'goaltracker_data';
-
-function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
-/* ─── Recursive tree helpers ─── */
-
-function findSubInTree(subs: SubItem[], subId: string): SubItem | undefined {
-  for (const s of subs) {
-    if (s.id === subId) return s;
-    const found = findSubInTree(s.subs || [], subId);
-    if (found) return found;
-  }
-  return undefined;
-}
-
-function removeSubFromTree(subs: SubItem[], subId: string): SubItem[] {
-  return subs
-    .filter(s => s.id !== subId)
-    .map(s => ({ ...s, subs: removeSubFromTree(s.subs || [], subId) }));
-}
+/* ─── Markdown helpers (for copy / paste) ─── */
 
 function parseSubsFromMarkdown(lines: string[], startIdx: number, parentIndent: number): { subs: SubItem[]; nextIdx: number } {
   const subs: SubItem[] = [];
@@ -42,7 +22,7 @@ function parseSubsFromMarkdown(lines: string[], startIdx: number, parentIndent: 
     const checked = cbMatch ? cbMatch[1] === 'x' : false;
     i++;
     const children = parseSubsFromMarkdown(lines, i, indent);
-    subs.push({ id: generateId(), text, type: isCheckbox ? 'checkbox' : 'list', checked, subs: children.subs });
+    subs.push({ id: '', text, type: isCheckbox ? 'checkbox' : 'list', checked, subs: children.subs });
     i = children.nextIdx;
   }
   return { subs, nextIdx: i };
@@ -58,7 +38,7 @@ function parseMarkdownGoals(markdown: string): Goal[] {
     if (!match) { i++; continue; }
     i++;
     const children = parseSubsFromMarkdown(lines, i, 0);
-    goals.push({ id: generateId(), text: match[2], checked: false, subs: children.subs });
+    goals.push({ id: '', text: match[2], checked: match[1] === 'x', subs: children.subs });
     i = children.nextIdx;
   }
   return goals;
@@ -79,6 +59,8 @@ function formatSubsForCopy(subs: SubItem[], indent: number): string {
   });
   return text;
 }
+
+/* ─── Week helpers ─── */
 
 function getWeekKey(offset: number): string {
   const d = new Date();
@@ -112,158 +94,93 @@ export function formatDate(d: Date): string {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-function loadData(): GoalData {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  } catch {
-    return {};
-  }
-}
-
-function saveData(data: GoalData): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
+/* ─── Hook ─── */
 
 export function useGoals() {
   const [weekOffset, setWeekOffset] = useState(0);
-  const [goals, setGoals] = useState<Goal[]>(() => {
-    const data = loadData();
-    return data[getWeekKey(0)] || [];
-  });
+  const [goals, setGoals] = useState<Goal[]>([]);
 
-  const refresh = useCallback((offset: number) => {
-    const data = loadData();
-    setGoals(data[getWeekKey(offset)] || []);
+  const loadGoals = useCallback(async (offset: number) => {
+    const weekKey = getWeekKey(offset);
+    const data = await api.fetchGoals(weekKey);
+    setGoals(data);
   }, []);
+
+  useEffect(() => {
+    loadGoals(0);
+  }, [loadGoals]);
 
   const prevWeek = useCallback(() => {
     setWeekOffset(prev => {
       const next = prev - 1;
-      refresh(next);
+      loadGoals(next);
       return next;
     });
-  }, [refresh]);
+  }, [loadGoals]);
 
   const nextWeek = useCallback(() => {
     setWeekOffset(prev => {
       const next = prev + 1;
-      refresh(next);
+      loadGoals(next);
       return next;
     });
-  }, [refresh]);
+  }, [loadGoals]);
 
-  const addGoal = useCallback((text: string) => {
-    const data = loadData();
-    const key = getWeekKey(weekOffset);
-    const list = data[key] || [];
-    list.push({ id: generateId(), text, checked: false, subs: [] });
-    data[key] = list;
-    saveData(data);
-    setGoals(list);
+  const addGoal = useCallback(async (text: string) => {
+    const weekKey = getWeekKey(weekOffset);
+    const newGoal = await api.createGoal(text, weekKey);
+    setGoals(prev => [...prev, newGoal]);
   }, [weekOffset]);
 
-  const deleteGoal = useCallback((id: string) => {
-    const data = loadData();
-    const key = getWeekKey(weekOffset);
-    const list = (data[key] || []).filter(g => g.id !== id);
-    data[key] = list;
-    saveData(data);
-    setGoals(list);
-  }, [weekOffset]);
+  const deleteGoal = useCallback(async (id: string) => {
+    await api.deleteGoal(id);
+    setGoals(prev => prev.filter(g => g.id !== id));
+  }, []);
 
-  const toggleGoal = useCallback((id: string) => {
-    const data = loadData();
-    const key = getWeekKey(weekOffset);
-    const list = data[key] || [];
-    const goal = list.find(g => g.id === id);
-    if (goal) {
-      goal.checked = !goal.checked;
-      data[key] = list;
-      saveData(data);
-      setGoals([...list]);
-    }
-  }, [weekOffset]);
+  const toggleGoal = useCallback(async (id: string) => {
+    const goal = goals.find(g => g.id === id);
+    if (!goal) return;
+    await api.updateGoal(id, { checked: !goal.checked });
+    setGoals(prev => prev.map(g => g.id === id ? { ...g, checked: !g.checked } : g));
+  }, [goals]);
 
-  const addSubItem = useCallback((goalId: string, text: string, type: 'checkbox' | 'list', parentSubId?: string) => {
-    const data = loadData();
-    const key = getWeekKey(weekOffset);
-    const list = data[key] || [];
-    const goal = list.find(g => g.id === goalId);
-    if (goal) {
-      const newSub: SubItem = { id: generateId(), text, type, checked: false, subs: [] };
-      if (parentSubId) {
-        const parent = findSubInTree(goal.subs || [], parentSubId);
-        if (parent) {
-          if (!parent.subs) parent.subs = [];
-          parent.subs.push(newSub);
-        }
-      } else {
-        if (!goal.subs) goal.subs = [];
-        goal.subs.push(newSub);
+  const addSubItem = useCallback(async (goalId: string, text: string, type: 'checkbox' | 'list', parentSubId?: string) => {
+    await api.createSubItem(goalId, text, type, parentSubId);
+    await loadGoals(weekOffset);
+  }, [weekOffset, loadGoals]);
+
+  const toggleSub = useCallback(async (goalId: string, subId: string) => {
+    // Find current checked state by traversing the tree
+    const goal = goals.find(g => g.id === goalId);
+    if (!goal) return;
+    const findSub = (subs: SubItem[]): SubItem | undefined => {
+      for (const s of subs) {
+        if (s.id === subId) return s;
+        const found = findSub(s.subs || []);
+        if (found) return found;
       }
-      data[key] = list;
-      saveData(data);
-      setGoals([...list]);
-    }
-  }, [weekOffset]);
+      return undefined;
+    };
+    const sub = findSub(goal.subs);
+    if (!sub) return;
+    await api.updateSubItem(subId, { checked: !sub.checked });
+    await loadGoals(weekOffset);
+  }, [goals, weekOffset, loadGoals]);
 
-  const toggleSub = useCallback((goalId: string, subId: string) => {
-    const data = loadData();
-    const key = getWeekKey(weekOffset);
-    const list = data[key] || [];
-    const goal = list.find(g => g.id === goalId);
-    if (goal) {
-      const sub = findSubInTree(goal.subs || [], subId);
-      if (sub) {
-        sub.checked = !sub.checked;
-        data[key] = list;
-        saveData(data);
-        setGoals([...list]);
-      }
-    }
-  }, [weekOffset]);
+  const removeSub = useCallback(async (_goalId: string, subId: string) => {
+    await api.deleteSubItem(subId);
+    await loadGoals(weekOffset);
+  }, [weekOffset, loadGoals]);
 
-  const removeSub = useCallback((goalId: string, subId: string) => {
-    const data = loadData();
-    const key = getWeekKey(weekOffset);
-    const list = data[key] || [];
-    const goal = list.find(g => g.id === goalId);
-    if (goal && goal.subs) {
-      goal.subs = removeSubFromTree(goal.subs, subId);
-      data[key] = list;
-      saveData(data);
-      setGoals([...list]);
-    }
-  }, [weekOffset]);
+  const renameGoal = useCallback(async (id: string, newText: string) => {
+    await api.updateGoal(id, { text: newText });
+    setGoals(prev => prev.map(g => g.id === id ? { ...g, text: newText } : g));
+  }, []);
 
-  const renameGoal = useCallback((id: string, newText: string) => {
-    const data = loadData();
-    const key = getWeekKey(weekOffset);
-    const list = data[key] || [];
-    const goal = list.find(g => g.id === id);
-    if (goal) {
-      goal.text = newText;
-      data[key] = list;
-      saveData(data);
-      setGoals([...list]);
-    }
-  }, [weekOffset]);
-
-  const renameSub = useCallback((goalId: string, subId: string, newText: string) => {
-    const data = loadData();
-    const key = getWeekKey(weekOffset);
-    const list = data[key] || [];
-    const goal = list.find(g => g.id === goalId);
-    if (goal) {
-      const sub = findSubInTree(goal.subs || [], subId);
-      if (sub) {
-        sub.text = newText;
-        data[key] = list;
-        saveData(data);
-        setGoals([...list]);
-      }
-    }
-  }, [weekOffset]);
+  const renameSub = useCallback(async (_goalId: string, subId: string, newText: string) => {
+    await api.updateSubItem(subId, { text: newText });
+    await loadGoals(weekOffset);
+  }, [weekOffset, loadGoals]);
 
   const copyState = useCallback((): Promise<boolean> => {
     const range = getWeekRange(weekOffset);
@@ -292,12 +209,9 @@ export function useGoals() {
       const clipText = await navigator.clipboard.readText();
       const parsed = parseMarkdownGoals(clipText);
       if (parsed.length === 0) return 'empty';
-      const data = loadData();
-      const key = getWeekKey(weekOffset);
-      const existing = data[key] || [];
-      data[key] = [...existing, ...parsed];
-      saveData(data);
-      setGoals(data[key]);
+      const weekKey = getWeekKey(weekOffset);
+      const updated = await api.pasteGoals(weekKey, parsed);
+      setGoals(updated);
       return 'ok';
     } catch {
       return 'fail';
