@@ -40,6 +40,7 @@ COPY --from=backend-build /app/server/node_modules/@prisma ./node_modules/@prism
 COPY --from=frontend-build /app/dist ./public
 
 RUN mkdir -p /app/data
+VOLUME /app/data
 
 ENV NODE_ENV=production
 ENV PORT=3001
