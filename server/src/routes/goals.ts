@@ -27,9 +27,20 @@ function buildSubTree(flatSubs: SubItemType[], parentId: string | null): SubItem
     }));
 }
 
+function getUserId(req: Request, res: Response): string | null {
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return null;
+  }
+  return userId;
+}
+
 /* ─── GET /api/goals?weekKey=YYYY-MM-DD ─── */
 
 router.get('/', async (req: Request, res: Response) => {
+  const userId = getUserId(req, res);
+  if (!userId) return;
   const weekKey = req.query.weekKey as string;
   if (!weekKey) {
     res.status(400).json({ error: 'weekKey is required' });
@@ -37,7 +48,7 @@ router.get('/', async (req: Request, res: Response) => {
   }
 
   const goals = await prisma.goal.findMany({
-    where: { weekKey },
+    where: { weekKey, userId },
     include: { subs: true },
     orderBy: { order: 'asc' },
   });
@@ -55,16 +66,18 @@ router.get('/', async (req: Request, res: Response) => {
 /* ─── POST /api/goals ─── */
 
 router.post('/', async (req: Request, res: Response) => {
+  const userId = getUserId(req, res);
+  if (!userId) return;
   const { text, weekKey } = req.body;
   if (!text || !weekKey) {
     res.status(400).json({ error: 'text and weekKey are required' });
     return;
   }
 
-  const count = await prisma.goal.count({ where: { weekKey } });
+  const count = await prisma.goal.count({ where: { weekKey, userId } });
 
   const goal = await prisma.goal.create({
-    data: { text, weekKey, order: count },
+    data: { text, weekKey, order: count, userId },
     include: { subs: true },
   });
 
@@ -79,6 +92,8 @@ router.post('/', async (req: Request, res: Response) => {
 /* ─── PATCH /api/goals/:id ─── */
 
 router.patch('/:id', async (req: Request, res: Response) => {
+  const userId = getUserId(req, res);
+  if (!userId) return;
   const id = req.params.id as string;
   const { text, checked } = req.body;
 
@@ -86,10 +101,13 @@ router.patch('/:id', async (req: Request, res: Response) => {
   if (text !== undefined) data.text = text;
   if (checked !== undefined) data.checked = checked;
 
-  const goal = await prisma.goal.update({
-    where: { id },
-    data,
-  });
+  const existing = await prisma.goal.findFirst({ where: { id, userId } });
+  if (!existing) {
+    res.status(404).json({ error: 'Goal not found' });
+    return;
+  }
+
+  const goal = await prisma.goal.update({ where: { id }, data });
 
   res.json({ id: goal.id, text: goal.text, checked: goal.checked });
 });
@@ -97,19 +115,43 @@ router.patch('/:id', async (req: Request, res: Response) => {
 /* ─── DELETE /api/goals/:id ─── */
 
 router.delete('/:id', async (req: Request, res: Response) => {
+  const userId = getUserId(req, res);
+  if (!userId) return;
   const id = req.params.id as string;
-  await prisma.goal.delete({ where: { id } });
+  const result = await prisma.goal.deleteMany({ where: { id, userId } });
+  if (result.count === 0) {
+    res.status(404).json({ error: 'Goal not found' });
+    return;
+  }
   res.json({ ok: true });
 });
 
 /* ─── POST /api/goals/:goalId/subs ─── */
 
 router.post('/:goalId/subs', async (req: Request, res: Response) => {
+  const userId = getUserId(req, res);
+  if (!userId) return;
   const goalId = req.params.goalId as string;
   const { text, type, parentSubId } = req.body;
   if (!text) {
     res.status(400).json({ error: 'text is required' });
     return;
+  }
+
+  const goal = await prisma.goal.findFirst({ where: { id: goalId, userId } });
+  if (!goal) {
+    res.status(404).json({ error: 'Goal not found' });
+    return;
+  }
+
+  if (parentSubId) {
+    const parent = await prisma.subItem.findFirst({
+      where: { id: parentSubId, goalId },
+    });
+    if (!parent) {
+      res.status(404).json({ error: 'Parent sub-item not found' });
+      return;
+    }
   }
 
   // Count siblings for order
@@ -139,6 +181,8 @@ router.post('/:goalId/subs', async (req: Request, res: Response) => {
 /* ─── PATCH /api/goals/subs/:id ─── */
 
 router.patch('/subs/:id', async (req: Request, res: Response) => {
+  const userId = getUserId(req, res);
+  if (!userId) return;
   const id = req.params.id as string;
   const { text, checked } = req.body;
 
@@ -146,10 +190,15 @@ router.patch('/subs/:id', async (req: Request, res: Response) => {
   if (text !== undefined) data.text = text;
   if (checked !== undefined) data.checked = checked;
 
-  const sub = await prisma.subItem.update({
-    where: { id },
-    data,
+  const existing = await prisma.subItem.findFirst({
+    where: { id, goal: { userId } },
   });
+  if (!existing) {
+    res.status(404).json({ error: 'Sub-item not found' });
+    return;
+  }
+
+  const sub = await prisma.subItem.update({ where: { id }, data });
 
   res.json({ id: sub.id, text: sub.text, type: sub.type, checked: sub.checked });
 });
@@ -157,8 +206,16 @@ router.patch('/subs/:id', async (req: Request, res: Response) => {
 /* ─── DELETE /api/goals/subs/:id ─── */
 
 router.delete('/subs/:id', async (req: Request, res: Response) => {
+  const userId = getUserId(req, res);
+  if (!userId) return;
   const id = req.params.id as string;
-  await prisma.subItem.delete({ where: { id } });
+  const result = await prisma.subItem.deleteMany({
+    where: { id, goal: { userId } },
+  });
+  if (result.count === 0) {
+    res.status(404).json({ error: 'Sub-item not found' });
+    return;
+  }
   res.json({ ok: true });
 });
 
@@ -202,13 +259,15 @@ async function createSubItems(
 }
 
 router.post('/paste', async (req: Request, res: Response) => {
+  const userId = getUserId(req, res);
+  if (!userId) return;
   const { weekKey, goals } = req.body as { weekKey: string; goals: PasteGoalInput[] };
   if (!weekKey || !goals || goals.length === 0) {
     res.status(400).json({ error: 'weekKey and goals are required' });
     return;
   }
 
-  const existingCount = await prisma.goal.count({ where: { weekKey } });
+  const existingCount = await prisma.goal.count({ where: { weekKey, userId } });
 
   for (let i = 0; i < goals.length; i++) {
     const g = goals[i];
@@ -218,6 +277,7 @@ router.post('/paste', async (req: Request, res: Response) => {
         checked: g.checked,
         weekKey,
         order: existingCount + i,
+        userId,
       },
     });
     if (g.subs && g.subs.length > 0) {
@@ -227,7 +287,7 @@ router.post('/paste', async (req: Request, res: Response) => {
 
   // Return updated list
   const allGoals = await prisma.goal.findMany({
-    where: { weekKey },
+    where: { weekKey, userId },
     include: { subs: true },
     orderBy: { order: 'asc' },
   });

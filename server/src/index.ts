@@ -4,6 +4,8 @@ import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import { goalsRouter } from './routes/goals.js';
+import { authRouter } from './routes/auth.js';
+import { requireAuth } from './middleware/auth.js';
 
 export const prisma = new PrismaClient();
 
@@ -14,7 +16,8 @@ app.use(cors());
 app.use(express.json());
 
 // API routes
-app.use('/api/goals', goalsRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/goals', requireAuth, goalsRouter);
 
 // Serve frontend static files in production
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useAuth } from './hooks/useAuth';
 import { useGoals } from './hooks/useGoals';
 import Header from './components/Header';
 import WeekNav from './components/WeekNav';
@@ -6,9 +7,10 @@ import ProgressBar from './components/ProgressBar';
 import GoalList from './components/GoalList';
 import ConfirmDialog from './components/ConfirmDialog';
 import Toast from './components/Toast';
+import AuthScreen from './components/AuthScreen';
 import './App.css';
 
-export default function App() {
+function GoalApp({ onLogout }: { onLogout: () => void }) {
   const {
     weekOffset, goals,
     prevWeek, nextWeek,
@@ -67,7 +69,7 @@ export default function App() {
     <>
       <div className="app">
         <header className="header">
-          <Header onCopy={handleCopy} onPaste={handlePaste} />
+          <Header onCopy={handleCopy} onPaste={handlePaste} onLogout={onLogout} />
           <WeekNav weekOffset={weekOffset} onPrev={prevWeek} onNext={nextWeek} />
         </header>
         <ProgressBar goals={goals} />
@@ -97,4 +99,22 @@ export default function App() {
       />
     </>
   );
+}
+
+export default function App() {
+  const { user, loading, login, register, logout } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="auth-shell">
+        <div className="auth-card auth-loading">載入中…</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthScreen onLogin={login} onRegister={register} />;
+  }
+
+  return <GoalApp onLogout={logout} />;
 }

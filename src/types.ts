@@ -14,3 +14,8 @@ export interface Goal {
 }
 
 export type GoalData = Record<string, Goal[]>;
+
+export interface AuthUser {
+  id: string;
+  username: string;
+}

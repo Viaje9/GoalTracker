@@ -14,11 +14,15 @@ model Goal {
   weekKey  String
   order    Int       @default(0)
   subs     SubItem[]
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([weekKey])
+  @@index([userId])
+  @@index([userId, weekKey])
 }
 
 model SubItem {
@@ -40,4 +44,27 @@ model SubItem {
 
   @@index([goalId])
   @@index([parentId])
+}
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  passwordHash String
+  goals        Goal[]
+  sessions     Session[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  tokenHash  String   @unique
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([userId])
 }

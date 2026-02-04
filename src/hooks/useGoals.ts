@@ -101,9 +101,13 @@ export function useGoals() {
   const [goals, setGoals] = useState<Goal[]>([]);
 
   const loadGoals = useCallback(async (offset: number) => {
-    const weekKey = getWeekKey(offset);
-    const data = await api.fetchGoals(weekKey);
-    setGoals(data);
+    try {
+      const weekKey = getWeekKey(offset);
+      const data = await api.fetchGoals(weekKey);
+      setGoals(data);
+    } catch {
+      // Ignore fetch failures; auth errors are handled globally.
+    }
   }, []);
 
   useEffect(() => {
@@ -127,26 +131,42 @@ export function useGoals() {
   }, [loadGoals]);
 
   const addGoal = useCallback(async (text: string) => {
-    const weekKey = getWeekKey(weekOffset);
-    const newGoal = await api.createGoal(text, weekKey);
-    setGoals(prev => [...prev, newGoal]);
+    try {
+      const weekKey = getWeekKey(weekOffset);
+      const newGoal = await api.createGoal(text, weekKey);
+      setGoals(prev => [...prev, newGoal]);
+    } catch {
+      // Ignore create failures; auth errors are handled globally.
+    }
   }, [weekOffset]);
 
   const deleteGoal = useCallback(async (id: string) => {
-    await api.deleteGoal(id);
-    setGoals(prev => prev.filter(g => g.id !== id));
+    try {
+      await api.deleteGoal(id);
+      setGoals(prev => prev.filter(g => g.id !== id));
+    } catch {
+      // Ignore delete failures.
+    }
   }, []);
 
   const toggleGoal = useCallback(async (id: string) => {
     const goal = goals.find(g => g.id === id);
     if (!goal) return;
-    await api.updateGoal(id, { checked: !goal.checked });
-    setGoals(prev => prev.map(g => g.id === id ? { ...g, checked: !g.checked } : g));
+    try {
+      await api.updateGoal(id, { checked: !goal.checked });
+      setGoals(prev => prev.map(g => g.id === id ? { ...g, checked: !g.checked } : g));
+    } catch {
+      // Ignore update failures.
+    }
   }, [goals]);
 
   const addSubItem = useCallback(async (goalId: string, text: string, type: 'checkbox' | 'list', parentSubId?: string) => {
-    await api.createSubItem(goalId, text, type, parentSubId);
-    await loadGoals(weekOffset);
+    try {
+      await api.createSubItem(goalId, text, type, parentSubId);
+      await loadGoals(weekOffset);
+    } catch {
+      // Ignore create failures.
+    }
   }, [weekOffset, loadGoals]);
 
   const toggleSub = useCallback(async (goalId: string, subId: string) => {
@@ -163,23 +183,39 @@ export function useGoals() {
     };
     const sub = findSub(goal.subs);
     if (!sub) return;
-    await api.updateSubItem(subId, { checked: !sub.checked });
-    await loadGoals(weekOffset);
+    try {
+      await api.updateSubItem(subId, { checked: !sub.checked });
+      await loadGoals(weekOffset);
+    } catch {
+      // Ignore update failures.
+    }
   }, [goals, weekOffset, loadGoals]);
 
   const removeSub = useCallback(async (_goalId: string, subId: string) => {
-    await api.deleteSubItem(subId);
-    await loadGoals(weekOffset);
+    try {
+      await api.deleteSubItem(subId);
+      await loadGoals(weekOffset);
+    } catch {
+      // Ignore delete failures.
+    }
   }, [weekOffset, loadGoals]);
 
   const renameGoal = useCallback(async (id: string, newText: string) => {
-    await api.updateGoal(id, { text: newText });
-    setGoals(prev => prev.map(g => g.id === id ? { ...g, text: newText } : g));
+    try {
+      await api.updateGoal(id, { text: newText });
+      setGoals(prev => prev.map(g => g.id === id ? { ...g, text: newText } : g));
+    } catch {
+      // Ignore update failures.
+    }
   }, []);
 
   const renameSub = useCallback(async (_goalId: string, subId: string, newText: string) => {
-    await api.updateSubItem(subId, { text: newText });
-    await loadGoals(weekOffset);
+    try {
+      await api.updateSubItem(subId, { text: newText });
+      await loadGoals(weekOffset);
+    } catch {
+      // Ignore update failures.
+    }
   }, [weekOffset, loadGoals]);
 
   const copyState = useCallback((): Promise<boolean> => {
