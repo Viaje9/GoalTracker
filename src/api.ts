@@ -19,11 +19,11 @@ export function clearToken() {
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const token = getToken();
-  const headers: HeadersInit = {
+  const headers = new Headers({
     'Content-Type': 'application/json',
     ...(options?.headers || {}),
-  };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  });
+  if (token) headers.set('Authorization', `Bearer ${token}`);
 
   const res = await fetch(`${API_BASE}${url}`, {
     headers,
