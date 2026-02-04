@@ -79,7 +79,7 @@ router.post('/', async (req: Request, res: Response) => {
 /* ─── PATCH /api/goals/:id ─── */
 
 router.patch('/:id', async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { text, checked } = req.body;
 
   const data: Record<string, unknown> = {};
@@ -97,7 +97,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
 /* ─── DELETE /api/goals/:id ─── */
 
 router.delete('/:id', async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   await prisma.goal.delete({ where: { id } });
   res.json({ ok: true });
 });
@@ -105,7 +105,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 /* ─── POST /api/goals/:goalId/subs ─── */
 
 router.post('/:goalId/subs', async (req: Request, res: Response) => {
-  const { goalId } = req.params;
+  const goalId = req.params.goalId as string;
   const { text, type, parentSubId } = req.body;
   if (!text) {
     res.status(400).json({ error: 'text is required' });
@@ -139,7 +139,7 @@ router.post('/:goalId/subs', async (req: Request, res: Response) => {
 /* ─── PATCH /api/goals/subs/:id ─── */
 
 router.patch('/subs/:id', async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { text, checked } = req.body;
 
   const data: Record<string, unknown> = {};
@@ -157,7 +157,7 @@ router.patch('/subs/:id', async (req: Request, res: Response) => {
 /* ─── DELETE /api/goals/subs/:id ─── */
 
 router.delete('/subs/:id', async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   await prisma.subItem.delete({ where: { id } });
   res.json({ ok: true });
 });
