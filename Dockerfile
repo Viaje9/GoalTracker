@@ -39,8 +39,11 @@ COPY --from=backend-build /app/server/node_modules/@prisma ./node_modules/@prism
 # Copy frontend build output into public/
 COPY --from=frontend-build /app/dist ./public
 
+RUN mkdir -p /app/data
+
 ENV NODE_ENV=production
 ENV PORT=3001
+ENV DATABASE_URL="file:/app/data/data.db"
 
 EXPOSE 3001
 

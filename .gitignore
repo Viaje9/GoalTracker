@@ -7,3 +7,5 @@ dev-dist
 server/node_modules
 server/dist
 server/.env
+*.db
+*.db-journal
