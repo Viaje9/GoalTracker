@@ -62,13 +62,20 @@ function formatSubsForCopy(subs: SubItem[], indent: number): string {
 
 /* ─── Week helpers ─── */
 
+function toLocalDateKey(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function getWeekKey(offset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offset * 7);
   const day = d.getDay();
   const mon = new Date(d);
   mon.setDate(d.getDate() - ((day + 6) % 7));
-  return mon.toISOString().slice(0, 10);
+  return toLocalDateKey(mon);
 }
 
 export function getWeekRange(offset: number): { start: Date; end: Date } {
